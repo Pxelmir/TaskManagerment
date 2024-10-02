@@ -63,7 +63,7 @@ class Task implements Serializable {
     }
 }
 
-public class addTask extends JFrame {
+public class Dashboard extends JFrame {
     JFrame frame;
     private JTextField taskInputField;
     private JSpinner deadlineSpinner;
@@ -101,7 +101,7 @@ public class addTask extends JFrame {
         }
     }
 
-    public addTask() {
+    public Dashboard() {
         setTitle("SoDa");
         setSize(1120, 630);
         setLocation(250, 100);
@@ -312,7 +312,7 @@ private void showHome() {
         topPanel.add(reminderSpinner);
 
         JButton addTaskButton = new JButton("Add Task");
-        addTaskButton.addActionListener(e -> addTask());
+        addTaskButton.addActionListener(e -> Dashboard());
         topPanel.add(addTaskButton);
 
         JButton removeTaskButton = new JButton("Remove Task");
@@ -366,7 +366,7 @@ private void showHome() {
         return panel;
     }
 
-    private void addTask() {
+    private void Dashboard() {
         String taskName = taskInputField.getText();
         if (taskName.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Task name cannot be empty!");
@@ -467,7 +467,6 @@ private void showHome() {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new addTask());
+        SwingUtilities.invokeLater(() -> new Dashboard());
     }
 }
-
