@@ -68,7 +68,11 @@ public class Dashboard extends JFrame {
     private connection dbConnection;
     private CardLayout cardLayout;
     private JPanel contentPanel;
-    
+
+    JLabel completedTasksLabel;
+        JLabel inProgressTasksLabel;
+        JLabel incompleteTasksLabel;
+        JLabel messageLabel;
     
     
 
@@ -82,6 +86,7 @@ public class Dashboard extends JFrame {
     
         add(createSidebarPanel(), BorderLayout.WEST);
         add(showDashboard(), BorderLayout.CENTER);
+        add(addAdditionalInfoBoxes(),BorderLayout.SOUTH);
     
         loadTasksFromDB(); // Load tasks from the database when the app starts
         setVisible(true);
@@ -288,6 +293,8 @@ public class Dashboard extends JFrame {
      });
      topPanel.add(moveTaskButton);
 
+     
+
         incompleteTaskListModel = new DefaultListModel<>();
         incompleteTaskList = new JList<>(incompleteTaskListModel);
         inProgressTaskListModel = new DefaultListModel<>();
@@ -295,13 +302,12 @@ public class Dashboard extends JFrame {
         completedTaskListModel = new DefaultListModel<>();
         completedTaskList = new JList<>(completedTaskListModel);
 
-
         ImageIcon taskListPanelIcon = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
         Image taskListPanelImage = taskListPanelIcon.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
 
         BackgroundPanel taskListPanel = new BackgroundPanel(taskListPanelImage); // Add background image
         taskListPanel.setOpaque(false); // Transparent to show background
-        taskListPanel.setLayout(new GridLayout(1, 3));
+        taskListPanel.setLayout(new GridLayout(2, 3,10,80));
 
         JPanel incompletePanel = new JPanel(new BorderLayout());
         incompletePanel.add(new JLabel("Incomplete"), BorderLayout.NORTH);
@@ -315,12 +321,42 @@ public class Dashboard extends JFrame {
         completedPanel.add(new JLabel("Completed"), BorderLayout.NORTH);
         completedPanel.add(new JScrollPane(completedTaskList), BorderLayout.CENTER);
 
+        JPanel notePanel = new JPanel(new BorderLayout());
+        notePanel.add(new JLabel("Notes"), BorderLayout.NORTH); 
+        JTextArea textArea = new JTextArea();
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        notePanel.add(scrollPane, BorderLayout.CENTER);
+        
+        JPanel linkPanel = new JPanel(new BorderLayout());
+        linkPanel.add(new JLabel("Links"), BorderLayout.NORTH); 
+        JTextArea textArea2 = new JTextArea();
+        textArea2.setLineWrap(true);
+        textArea2.setWrapStyleWord(true);
+        JScrollPane scrollPane2 = new JScrollPane(textArea2);
+        linkPanel.add(scrollPane2, BorderLayout.CENTER);
+
+        // SUPPOSED TO BE STREAK PANEL*
+        // JPanel linkPanel = new JPanel(new BorderLayout());
+        // linkPanel.add(new JLabel("Links"), BorderLayout.NORTH); 
+        // JTextArea textArea2 = new JTextArea();
+        // textArea2.setLineWrap(true);
+        // textArea2.setWrapStyleWord(true);
+        // JScrollPane scrollPane2 = new JScrollPane(textArea2);
+        // linkPanel.add(scrollPane2, BorderLayout.CENTER);
+        
+        
+
         taskListPanel.add(incompletePanel);
         taskListPanel.add(inProgressPanel);
         taskListPanel.add(completedPanel);
+        taskListPanel.add(notePanel);
+        taskListPanel.add(linkPanel);
 
         panel.add(topPanel, BorderLayout.NORTH);
         panel.add(taskListPanel, BorderLayout.CENTER);
+        
 
         return panel;
     }
@@ -356,10 +392,6 @@ public class Dashboard extends JFrame {
     }
 
     private  JPanel createStatisticsPanel(){
-        JLabel completedTasksLabel;
-        JLabel inProgressTasksLabel;
-        JLabel incompleteTasksLabel;
-        JLabel messageLabel;
 
 
         JPanel statpanel = new JPanel();
@@ -394,6 +426,20 @@ public class Dashboard extends JFrame {
         int selectedIndex = incompleteTaskList.getSelectedIndex();
         if (selectedIndex != -1) {
             Task selectedTask = incompleteTaskListModel.remove(selectedIndex);
+            allTasks.remove(selectedTask);
+            removeTaskFromDB(selectedTask);
+        }
+
+        int selectedIndex2 = inProgressTaskList.getSelectedIndex();
+        if (selectedIndex2 != -1) {
+            Task selectedTask = inProgressTaskListModel.remove(selectedIndex2);
+            allTasks.remove(selectedTask);
+            removeTaskFromDB(selectedTask);
+        }
+
+        int selectedIndex3 = completedTaskList.getSelectedIndex();
+        if (selectedIndex3 != -1) {
+            Task selectedTask = completedTaskListModel.remove(selectedIndex3);
             allTasks.remove(selectedTask);
             removeTaskFromDB(selectedTask);
         }
@@ -445,14 +491,17 @@ public class Dashboard extends JFrame {
             case 0: // Incomplete
                 selectedTask.setStatus(Task.STATUS_INCOMPLETE);
                 incompleteTaskListModel.addElement(selectedTask);
+                updateTaskStatistics("incompleteListModel"); // Update stats for incomplete tasks
                 break;
             case 1: // In Progress
                 selectedTask.setStatus(Task.STATUS_IN_PROGRESS);
                 inProgressTaskListModel.addElement(selectedTask);
+                updateTaskStatistics("inProgressListModel"); // Update stats for in-progress tasks
                 break;
             case 2: // Completed
                 selectedTask.setStatus(Task.STATUS_COMPLETED);
                 completedTaskListModel.addElement(selectedTask);
+                updateTaskStatistics("completeTaskListModel"); // Update stats for completed tasks
                 break;
             default:
                 return; // If the user cancels the action
@@ -461,6 +510,38 @@ public class Dashboard extends JFrame {
         // Update the task status in the database
         updateTaskStatusInDB(selectedTask);
     }
+
+    // Method to update task statistics when a task is moved
+public void updateTaskStatistics(String taskListModel) {
+    int completedTasksCount = 0;
+    int inProgressTasksCount = 0;
+    int incompleteTasksCount = 0;
+    
+    switch (taskListModel) {
+        case "completeTaskListModel":
+            completedTasksCount++;
+            completedTasksLabel.setText("Completed Tasks: " + completedTasksCount);
+            break;
+        case "inProgressListModel":
+            inProgressTasksCount++;
+            inProgressTasksLabel.setText("In-Progress Tasks: " + inProgressTasksCount);
+            break;
+        case "incompleteListModel":
+            incompleteTasksCount++;
+            incompleteTasksLabel.setText("Incomplete Tasks: " + incompleteTasksCount);
+            break;
+    }
+
+    // Check if specific conditions are met and update the message label
+    if (incompleteTasksCount > 5) {
+        messageLabel.setText("Stop being lazy!");
+    } else if (inProgressTasksCount > 5) {
+        messageLabel.setText("Too many in progress, do the work without being lazy!");
+    } else {
+        messageLabel.setText("");  // Clear the message if conditions are not met
+    }
+}
+
     
     
     
@@ -748,6 +829,60 @@ private void showRecommendationPanel() {
         revalidate(); // Refresh the frame to show the new content
         repaint();
         
+    }
+    public JPanel addAdditionalInfoBoxes() {
+
+        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
+        Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
+
+    // Create the background panel with the image
+        JPanel infoPanel = new BackgroundPanel(i2);
+        infoPanel.setLayout(new BorderLayout());
+    
+        // Set a background color or image
+        infoPanel.setBackground(new Color(255, 255, 255)); // White background
+        infoPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+    
+        // Create a main panel for the additional info boxes (Calendar, Important Links, Welcome)
+        infoPanel.setLayout(new GridLayout(1, 3, 10, 10)); // 1 row, 3 columns for the boxes
+    
+        // Create "Calendar" box
+        JPanel calendarPanel = new JPanel();
+        calendarPanel.setLayout(new BoxLayout(calendarPanel, BoxLayout.Y_AXIS));
+        calendarPanel.setBorder(BorderFactory.createTitledBorder("Calendar")); // Add title
+        calendarPanel.add(new JLabel("In a small town nestled between rolling hills and lush green forests, there lived a young girl named Clara. She was known for her curious spirit and adventurous heart. Every day after school, Clara would explore the woods, searching for hidden treasures and secret paths. One sunny afternoon, while wandering deeper than ever before, she stumbled upon a shimmering stream. The water sparkled like diamonds in the sunlight, and Clara was instantly captivated.\n" + //
+                        "\n" + //
+                        "As she followed the stream, she noticed colorful wildflowers blooming along the banks. They swayed gently in the breeze, and Clara couldn't resist picking a few to take home. Suddenly, she heard a soft rustling sound behind her. Turning around, she was surprised to see a small, fluffy rabbit peering out from behind a bush. The rabbit looked at her with big, curious eyes, and Clara smiled.\n" + //
+                        "\n" + //
+                        "\"Hello there!\" she said softly. The rabbit hopped closer, as if inviting her to play. Clara spent the rest of the afternoon frolicking with her new friend, discovering the beauty of nature and the joy of friendship. Little did she know that this magical day would be the start of many wonderful adventures to come.\n" + //
+                        "\n" + //
+                        "")); // Placeholder content
+    
+        // Create "Important Links" box
+        JPanel importantLinksPanel = new JPanel();
+        importantLinksPanel.setLayout(new BoxLayout(importantLinksPanel, BoxLayout.Y_AXIS));
+        importantLinksPanel.setBorder(BorderFactory.createTitledBorder("Important Links")); // Add title
+        importantLinksPanel.add(new JLabel("Link 1: ..."));
+        importantLinksPanel.add(new JLabel("Link 2: ..."));
+    
+        // Create "Welcome" box
+        JPanel welcomePanel = new JPanel();
+        welcomePanel.setLayout(new BoxLayout(welcomePanel, BoxLayout.Y_AXIS));
+        welcomePanel.setBorder(BorderFactory.createTitledBorder("Welcome")); // Add title
+        welcomePanel.add(new JLabel("Welcome message goes here..."));
+    
+        // Add all the panels to the infoPanel (which acts as the container for the three boxes)
+        infoPanel.add(calendarPanel);
+        infoPanel.add(importantLinksPanel);
+        infoPanel.add(welcomePanel);
+    
+        // Add the infoPanel to the JFrame or main container, below the task sections
+        getContentPane().add(infoPanel, BorderLayout.SOUTH); // Assuming you're adding this to the bottom
+        validate(); // Refresh the layout after adding components
+        repaint();
+
+      
+      return  infoPanel;
     }
 
     
