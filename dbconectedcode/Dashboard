@@ -7,7 +7,10 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import javax.swing.*;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import javax.swing.*; 
 
 
 class Task {
@@ -17,7 +20,7 @@ class Task {
     private String status;
     private ArrayList<String> subtasks;
     private Date reminderTime;
-
+    
     public static final String STATUS_COMPLETED = "Completed";
     public static final String STATUS_IN_PROGRESS = "In Progress";
     public static final String STATUS_INCOMPLETE = "Incomplete";
@@ -29,6 +32,30 @@ class Task {
         this.status = status;
         this.subtasks = new ArrayList<>();
         this.reminderTime = reminderTime;
+    }
+
+    public void startReminder() {
+        if (reminderTime == null) {
+            return; // No reminder set
+        }
+
+        Timer timer = new Timer();
+        TimerTask reminderTask = new TimerTask() {
+            @Override
+            public void run() {
+                // Show a reminder notification
+                JOptionPane.showMessageDialog(null, "Reminder: " + taskName + " is due now!");
+                timer.cancel(); // Stop the timer after showing the reminder
+            }
+        };
+
+        // Schedule the reminder task
+        long delay = reminderTime.getTime() - System.currentTimeMillis();
+        if (delay > 0) {
+            timer.schedule(reminderTask, delay);
+        } else {
+            JOptionPane.showMessageDialog(null, "The reminder time has already passed.");
+        }
     }
 
     public String getTaskName() { return taskName; }
@@ -66,7 +93,14 @@ public class Dashboard extends JFrame {
     private JList<Task> completedTaskList;
     private ArrayList<Task> allTasks = new ArrayList<>();
     private connection dbConnection;
-    
+    private CardLayout cardLayout;
+    private JPanel contentPanel;
+    private List<Task> tasks = new ArrayList<>();
+
+    JLabel completedTasksLabel;
+        JLabel inProgressTasksLabel;
+        JLabel incompleteTasksLabel;
+        JLabel messageLabel;
     
     
 
@@ -80,6 +114,7 @@ public class Dashboard extends JFrame {
     
         add(createSidebarPanel(), BorderLayout.WEST);
         add(showDashboard(), BorderLayout.CENTER);
+        
     
         loadTasksFromDB(); // Load tasks from the database when the app starts
         setVisible(true);
@@ -103,6 +138,7 @@ public class Dashboard extends JFrame {
         homeButton.addActionListener(e -> showHome());
         recommendationButton.addActionListener(e -> showRecommendationPanel());
         motivationButton.addActionListener(e -> showMotivationPanel());
+        trendingTasksButton.addActionListener(e-> showTrendingTaskPanel());
     
         // Add buttons to the panel with GridBagConstraints
         gbc.gridx = 0;
@@ -192,11 +228,11 @@ public class Dashboard extends JFrame {
         JTabbedPane tabbedPane = new JTabbedPane();
 
         JPanel taskPanel = createTaskPanel();
-        JPanel reminderPanel = createReminderPanel();
+        JPanel statisticsPanel = createStatisticsPanel();
 
-        setContentPane(taskPanel);
+
         tabbedPane.addTab("Tasks", taskPanel);
-        tabbedPane.addTab("Reminders", reminderPanel);
+        tabbedPane.addTab("Statistics", statisticsPanel);
 
         JPanel dashboardPanel = new JPanel(new BorderLayout());
         dashboardPanel.add(tabbedPane, BorderLayout.CENTER);
@@ -283,6 +319,8 @@ public class Dashboard extends JFrame {
      });
      topPanel.add(moveTaskButton);
 
+     
+
         incompleteTaskListModel = new DefaultListModel<>();
         incompleteTaskList = new JList<>(incompleteTaskListModel);
         inProgressTaskListModel = new DefaultListModel<>();
@@ -290,13 +328,12 @@ public class Dashboard extends JFrame {
         completedTaskListModel = new DefaultListModel<>();
         completedTaskList = new JList<>(completedTaskListModel);
 
-
         ImageIcon taskListPanelIcon = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
         Image taskListPanelImage = taskListPanelIcon.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
 
         BackgroundPanel taskListPanel = new BackgroundPanel(taskListPanelImage); // Add background image
         taskListPanel.setOpaque(false); // Transparent to show background
-        taskListPanel.setLayout(new GridLayout(1, 3));
+        taskListPanel.setLayout(new GridLayout(2, 3,10,80));
 
         JPanel incompletePanel = new JPanel(new BorderLayout());
         incompletePanel.add(new JLabel("Incomplete"), BorderLayout.NORTH);
@@ -310,12 +347,42 @@ public class Dashboard extends JFrame {
         completedPanel.add(new JLabel("Completed"), BorderLayout.NORTH);
         completedPanel.add(new JScrollPane(completedTaskList), BorderLayout.CENTER);
 
+        JPanel notePanel = new JPanel(new BorderLayout());
+        notePanel.add(new JLabel("Notes"), BorderLayout.NORTH); 
+        JTextArea textArea = new JTextArea();
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        notePanel.add(scrollPane, BorderLayout.CENTER);
+        
+        JPanel linkPanel = new JPanel(new BorderLayout());
+        linkPanel.add(new JLabel("Links"), BorderLayout.NORTH); 
+        JTextArea textArea2 = new JTextArea();
+        textArea2.setLineWrap(true);
+        textArea2.setWrapStyleWord(true);
+        JScrollPane scrollPane2 = new JScrollPane(textArea2);
+        linkPanel.add(scrollPane2, BorderLayout.CENTER);
+
+        // SUPPOSED TO BE STREAK PANEL*
+        // JPanel linkPanel = new JPanel(new BorderLayout());
+        // linkPanel.add(new JLabel("Links"), BorderLayout.NORTH); 
+        // JTextArea textArea2 = new JTextArea();
+        // textArea2.setLineWrap(true);
+        // textArea2.setWrapStyleWord(true);
+        // JScrollPane scrollPane2 = new JScrollPane(textArea2);
+        // linkPanel.add(scrollPane2, BorderLayout.CENTER);
+        
+        
+
         taskListPanel.add(incompletePanel);
         taskListPanel.add(inProgressPanel);
         taskListPanel.add(completedPanel);
+        taskListPanel.add(notePanel);
+        taskListPanel.add(linkPanel);
 
         panel.add(topPanel, BorderLayout.NORTH);
         panel.add(taskListPanel, BorderLayout.CENTER);
+        
 
         return panel;
     }
@@ -343,11 +410,32 @@ public class Dashboard extends JFrame {
     }
 
 
-    private JPanel createReminderPanel() {
-        JPanel panel = new JPanel();
-        JLabel reminderLabel = new JLabel("Reminders will pop up when a task's reminder time arrives!");
-        panel.add(reminderLabel);
-        return panel;
+    
+
+        // Initially update the list of upcoming reminders
+
+
+  
+        
+
+    
+    
+    private  JPanel createStatisticsPanel(){
+
+
+        JPanel statpanel = new JPanel();
+        completedTasksLabel = new JLabel("Completed Tasks: 0");
+        inProgressTasksLabel = new JLabel("In-Progress Tasks: 0");
+        incompleteTasksLabel = new JLabel("Incomplete Tasks: 0");
+        messageLabel = new JLabel("");  // Message label for additional notifications
+        
+        // Add the labels to the statistics panel
+        statpanel.add(completedTasksLabel);
+        statpanel.add(inProgressTasksLabel);
+        statpanel.add(incompleteTasksLabel);
+        statpanel.add(messageLabel);
+        
+        return statpanel;
     }
 
     private void Dashboard() {
@@ -367,6 +455,20 @@ public class Dashboard extends JFrame {
         int selectedIndex = incompleteTaskList.getSelectedIndex();
         if (selectedIndex != -1) {
             Task selectedTask = incompleteTaskListModel.remove(selectedIndex);
+            allTasks.remove(selectedTask);
+            removeTaskFromDB(selectedTask);
+        }
+
+        int selectedIndex2 = inProgressTaskList.getSelectedIndex();
+        if (selectedIndex2 != -1) {
+            Task selectedTask = inProgressTaskListModel.remove(selectedIndex2);
+            allTasks.remove(selectedTask);
+            removeTaskFromDB(selectedTask);
+        }
+
+        int selectedIndex3 = completedTaskList.getSelectedIndex();
+        if (selectedIndex3 != -1) {
+            Task selectedTask = completedTaskListModel.remove(selectedIndex3);
             allTasks.remove(selectedTask);
             removeTaskFromDB(selectedTask);
         }
@@ -418,14 +520,17 @@ public class Dashboard extends JFrame {
             case 0: // Incomplete
                 selectedTask.setStatus(Task.STATUS_INCOMPLETE);
                 incompleteTaskListModel.addElement(selectedTask);
+                updateTaskStatistics("incompleteListModel"); // Update stats for incomplete tasks
                 break;
             case 1: // In Progress
                 selectedTask.setStatus(Task.STATUS_IN_PROGRESS);
                 inProgressTaskListModel.addElement(selectedTask);
+                updateTaskStatistics("inProgressListModel"); // Update stats for in-progress tasks
                 break;
             case 2: // Completed
                 selectedTask.setStatus(Task.STATUS_COMPLETED);
                 completedTaskListModel.addElement(selectedTask);
+                updateTaskStatistics("completeTaskListModel"); // Update stats for completed tasks
                 break;
             default:
                 return; // If the user cancels the action
@@ -434,6 +539,38 @@ public class Dashboard extends JFrame {
         // Update the task status in the database
         updateTaskStatusInDB(selectedTask);
     }
+
+    // Method to update task statistics when a task is moved
+public void updateTaskStatistics(String taskListModel) {
+    int completedTasksCount = 0;
+    int inProgressTasksCount = 0;
+    int incompleteTasksCount = 0;
+    
+    switch (taskListModel) {
+        case "completeTaskListModel":
+            completedTasksCount++;
+            completedTasksLabel.setText("Completed Tasks: " + completedTasksCount);
+            break;
+        case "inProgressListModel":
+            inProgressTasksCount++;
+            inProgressTasksLabel.setText("In-Progress Tasks: " + inProgressTasksCount);
+            break;
+        case "incompleteListModel":
+            incompleteTasksCount++;
+            incompleteTasksLabel.setText("Incomplete Tasks: " + incompleteTasksCount);
+            break;
+    }
+
+    // Check if specific conditions are met and update the message label
+    if (incompleteTasksCount > 5) {
+        messageLabel.setText("Stop being lazy!");
+    } else if (inProgressTasksCount > 5) {
+        messageLabel.setText("Too many in progress, do the work without being lazy!");
+    } else {
+        messageLabel.setText("");  // Clear the message if conditions are not met
+    }
+}
+
     
     
     
@@ -506,16 +643,98 @@ public class Dashboard extends JFrame {
         reminderSpinner.setValue(new Date());
     }
 
+    private JPanel createDashboardPanel() {
+    JTabbedPane tabbedPane = new JTabbedPane();
+    
+    JPanel taskPanel = createTaskPanel();
+    JPanel statisticspanel = createTaskPanel(); // Create the Task panel
+    
+    tabbedPane.addTab("Tasks", taskPanel);
+    tabbedPane.addTab("Statistics",statisticspanel);
+
+    
+    JPanel dashboardPanel = new JPanel(new BorderLayout());
+    dashboardPanel.add(tabbedPane, BorderLayout.CENTER);
+    
+    return dashboardPanel;
+}
+
     private void showHome() {
-        // Add functionality to display the home panel
+        getContentPane().removeAll(); // Remove existing components
+        add(createSidebarPanel(), BorderLayout.WEST); // Re-add sidebar
+        add(createDashboardPanel(), BorderLayout.CENTER); // Add dashboard panel
+        revalidate(); // Refresh the layout
+        repaint(); // Redraw the component
     }
 
-    private void showRecommendationPanel() {
-        // Add functionality to display recommendations
-    }
+   private JPanel createRecommendationPanel(){
+    ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
+    Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
+
+    // Create the background panel with the image
+        JPanel recommednationPanel = new BackgroundPanel(i2);
+        recommednationPanel.setLayout(new BorderLayout());
+
+        recommednationPanel.setBackground(new Color(255, 255, 255)); // White background
+        recommednationPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        String[] recommendation = {
+            "Oraganize your workspace",
+            "Preapare meal ideas for the week",
+            "DIY home decor projects.",
+            "Read a book",
+            "Take the walk in the nature",
+            "Visit your friends"
+        };
+
+        JLabel rJLabel = new JLabel(getRandomQuote(recommendation));
+        rJLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        rJLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        rJLabel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
+
+        JButton newTaskButton = new JButton("Get New Task");
+        newTaskButton.setFont(new Font("Arial", Font.BOLD, 16));
+        newTaskButton.setBackground(new Color(255, 182, 193)); // Light pink color
+        newTaskButton.setFocusPainted(false);
+        newTaskButton.addActionListener(e -> rJLabel.setText(getRandomQuote(recommendation)));
+
+        JButton backButton = new JButton("Back to Dashboard");
+        backButton.setFont(new Font("Arial", Font.BOLD, 16));
+        backButton.setSize(50, 50);
+        backButton.setFocusPainted(false);
+        backButton.addActionListener(e -> showHome()); // Navigate back to the dashboard
+
+         // Add the components to the panel
+         recommednationPanel.add(backButton,BorderLayout.WEST);
+         recommednationPanel.add(rJLabel, BorderLayout.CENTER);
+         recommednationPanel.add(newTaskButton, BorderLayout.SOUTH);
+     
+         return recommednationPanel;
+   }
+
+   // Method to get a random quote from the array
+   private String getRandomQuotes(String[] recommedation) {
+    int index = (int) (Math.random() * recommedation.length);
+    return recommedation[index];
+}
+
+private void showRecommendationPanel() {
+    JPanel motivationPanel = createRecommendationPanel();
+    setContentPane(motivationPanel);
+    revalidate(); // Refresh the frame to show the new content
+    repaint();
+    
+}
+
+
 
     private JPanel createMotivationPanel() {
-        JPanel motivationPanel = new JPanel();
+
+        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
+        Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
+
+    // Create the background panel with the image
+        JPanel motivationPanel = new BackgroundPanel(i2);
         motivationPanel.setLayout(new BorderLayout());
     
         // Set a background color or image
@@ -548,8 +767,9 @@ public class Dashboard extends JFrame {
          // Create a button to navigate back to the dashboard
         JButton backButton = new JButton("Back to Dashboard");
         backButton.setFont(new Font("Arial", Font.BOLD, 16));
+        backButton.setSize(50, 50);
         backButton.setFocusPainted(false);
-        backButton.addActionListener(e -> showDashboard()); // Navigate back to the dashboard
+        backButton.addActionListener(e -> showHome()); // Navigate back to the dashboard
     
         // Add the components to the panel
         motivationPanel.add(backButton,BorderLayout.WEST);
@@ -569,12 +789,86 @@ public class Dashboard extends JFrame {
         JPanel motivationPanel = createMotivationPanel();
         setContentPane(motivationPanel);
         revalidate(); // Refresh the frame to show the new content
-        repaint(); 
+        repaint();
+        
+    }
+
+    private JPanel createTrendingtaskJPanel(){
+        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
+        Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
+
+        JPanel TrendingPanel = new BackgroundPanel(i2);
+        TrendingPanel.setLayout(new BorderLayout());
+
+        TrendingPanel.setBackground(new Color(255, 255, 255)); // White background
+        TrendingPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        
+            TrendingPanel.setLayout(new BoxLayout(TrendingPanel, BoxLayout.Y_AXIS));
+            TrendingPanel.setBorder(BorderFactory.createTitledBorder("Trending Tasks"));
+         TrendingPanel.setBackground(Color.LIGHT_GRAY);
+    
+            // Sample list of trending tasks (you can populate this dynamically from your database)
+            String[] trendingTasks = {
+                "Complete the project report",
+                "Plan the upcoming team meeting",
+                "Update the website design",
+                "Organize the office files",
+                "Prepare presentation slides"
+            };
+    
+            // Create UI components for each task
+            for (String task : trendingTasks) {
+                JPanel taskPanel = new JPanel(new BorderLayout());
+                taskPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+                taskPanel.setBackground(Color.WHITE);
+    
+                JLabel taskLabel = new JLabel(task);
+                taskLabel.setFont(new Font("Arial", Font.BOLD, 14));
+    
+                JButton detailsButton = new JButton("Details");
+                detailsButton.setBackground(Color.PINK);
+                detailsButton.setForeground(Color.WHITE);
+                detailsButton.setFocusable(false);
+    
+                // Add task label and button to each task panel
+                taskPanel.add(taskLabel, BorderLayout.CENTER);
+                taskPanel.add(detailsButton, BorderLayout.EAST);
+    
+                // Add a hover effect to the task panel
+                taskPanel.addMouseListener(new java.awt.event.MouseAdapter() {
+                    public void mouseEntered(java.awt.event.MouseEvent evt) {
+                        taskPanel.setBackground(Color.PINK);
+                    }
+    
+                    public void mouseExited(java.awt.event.MouseEvent evt) {
+                        taskPanel.setBackground(Color.WHITE);
+                    }
+                });
+    
+                // Add the individual task panel to the main trending task panel
+                TrendingPanel.add(taskPanel);
+            }
+    
+        return TrendingPanel;
+    }
+
+    private void showTrendingTaskPanel() {
+        JPanel motivationPanel = createMotivationPanel();
+        setContentPane(motivationPanel);
+        revalidate(); // Refresh the frame to show the new content
+        repaint();
+        
     }
 
     
+    
 
     public static void main(String[] args) {
+        Task task = new Task("Finish report", "2024-10-23", "Work", "Incomplete", new Date(System.currentTimeMillis() + 60000)); // 1 minute from now
+        task.startReminder();
+
         new Dashboard();
     }
 }
+
