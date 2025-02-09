@@ -7,7 +7,11 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import javax.swing.*;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import javax.swing.*; 
+
 
 
 class Task {
@@ -17,7 +21,7 @@ class Task {
     private String status;
     private ArrayList<String> subtasks;
     private Date reminderTime;
-
+    
     public static final String STATUS_COMPLETED = "Completed";
     public static final String STATUS_IN_PROGRESS = "In Progress";
     public static final String STATUS_INCOMPLETE = "Incomplete";
@@ -29,6 +33,30 @@ class Task {
         this.status = status;
         this.subtasks = new ArrayList<>();
         this.reminderTime = reminderTime;
+    }
+
+    public void startReminder() {
+        if (reminderTime == null) {
+            return; // No reminder set
+        }
+
+        Timer timer = new Timer();
+        TimerTask reminderTask = new TimerTask() {
+            @Override
+            public void run() {
+                // Show a reminder notification
+                JOptionPane.showMessageDialog(null, "Reminder: " + taskName + " is due now!");
+                timer.cancel(); // Stop the timer after showing the reminder
+            }
+        };
+
+        // Schedule the reminder task
+        long delay = reminderTime.getTime() - System.currentTimeMillis();
+        if (delay > 0) {
+            timer.schedule(reminderTask, delay);
+        } else {
+            JOptionPane.showMessageDialog(null, "The reminder time has already passed.");
+        }
     }
 
     public String getTaskName() { return taskName; }
@@ -68,6 +96,7 @@ public class Dashboard extends JFrame {
     private connection dbConnection;
     private CardLayout cardLayout;
     private JPanel contentPanel;
+    private List<Task> tasks = new ArrayList<>();
 
     JLabel completedTasksLabel;
         JLabel inProgressTasksLabel;
@@ -86,7 +115,7 @@ public class Dashboard extends JFrame {
     
         add(createSidebarPanel(), BorderLayout.WEST);
         add(showDashboard(), BorderLayout.CENTER);
-        add(addAdditionalInfoBoxes(),BorderLayout.SOUTH);
+        
     
         loadTasksFromDB(); // Load tasks from the database when the app starts
         setVisible(true);
@@ -106,11 +135,15 @@ public class Dashboard extends JFrame {
         JButton recommendationButton = createSidebarButton("Recommendation");
         JButton trendingTasksButton = createSidebarButton("Trending Tasks");
         JButton motivationButton = createSidebarButton("Motivation");
-
+        JButton logoutButton = createSidebarButton("Logout"); // New logout button
+    
         homeButton.addActionListener(e -> showHome());
         recommendationButton.addActionListener(e -> showRecommendationPanel());
         motivationButton.addActionListener(e -> showMotivationPanel());
-        trendingTasksButton.addActionListener(e-> showTrendingTaskPanel());
+        trendingTasksButton.addActionListener(e -> showTrendingTaskPanel());
+        
+        // Add action listener for logout button
+        logoutButton.addActionListener(e -> logout());
     
         // Add buttons to the panel with GridBagConstraints
         gbc.gridx = 0;
@@ -125,13 +158,31 @@ public class Dashboard extends JFrame {
     
         gbc.gridy = 3;
         sidebarPanel.add(motivationButton, gbc);
-
+    
         gbc.gridy = 4;
+        sidebarPanel.add(logoutButton, gbc); // Add logout button to the sidebar
+    
+        gbc.gridy = 5;
         gbc.weighty = 1.0; // Make this row take up remaining vertical space
         sidebarPanel.add(new JLabel(), gbc);
     
         return sidebarPanel;
     }
+    
+    private void logout() {
+        // Clear the current dashboard
+        setVisible(false);
+        getContentPane().removeAll(); // Remove existing components
+    
+        // Create an instance of MyLogin to show the login screen
+        MyLogin loginPanel = new MyLogin();
+    
+        // Add the login panel to the main frame
+        add(loginPanel, BorderLayout.CENTER); // Add MyLogin panel to the center
+        revalidate(); // Refresh the layout
+        repaint(); // Redraw the component
+    }
+    
 
     private JButton createSidebarButton(String text) {
         JButton button = new JButton(text);
@@ -200,12 +251,10 @@ public class Dashboard extends JFrame {
         JTabbedPane tabbedPane = new JTabbedPane();
 
         JPanel taskPanel = createTaskPanel();
-        JPanel reminderPanel = createReminderPanel();
         JPanel statisticsPanel = createStatisticsPanel();
 
 
         tabbedPane.addTab("Tasks", taskPanel);
-        tabbedPane.addTab("Reminders", reminderPanel);
         tabbedPane.addTab("Statistics", statisticsPanel);
 
         JPanel dashboardPanel = new JPanel(new BorderLayout());
@@ -216,6 +265,16 @@ public class Dashboard extends JFrame {
 
         return dashboardPanel;
     }
+
+    private void refreshTaskList() {
+        
+        repaint(); // Repaint the UI to reflect changes
+        revalidate(); // Revalidate to ensure proper rendering
+        
+    }
+
+
+
     
 
     private class BackgroundPanel extends JPanel {
@@ -270,17 +329,8 @@ public class Dashboard extends JFrame {
 
         JButton updateTaskButton = new JButton("Update Task");
         topPanel.add(updateTaskButton);
-
-    // Assuming you have a method to get the selected task
-    updateTaskButton.addActionListener(e -> {
-        Task selectedTask = getSelectedTask(); // Get the currently selected task from the list
-        if (selectedTask != null) {
-            updateTask(selectedTask); // Call the updateTask method
-        } else {
-            JOptionPane.showMessageDialog(this, "No task selected!");
-        }
-    });
-
+ 
+    
      // Create the Move Task button
      JButton moveTaskButton = new JButton("Move Task");
      moveTaskButton.addActionListener(e -> {
@@ -307,7 +357,7 @@ public class Dashboard extends JFrame {
 
         BackgroundPanel taskListPanel = new BackgroundPanel(taskListPanelImage); // Add background image
         taskListPanel.setOpaque(false); // Transparent to show background
-        taskListPanel.setLayout(new GridLayout(2, 3,10,80));
+        taskListPanel.setLayout(new GridLayout(3, 2,10,80));
 
         JPanel incompletePanel = new JPanel(new BorderLayout());
         incompletePanel.add(new JLabel("Incomplete"), BorderLayout.NORTH);
@@ -384,13 +434,16 @@ public class Dashboard extends JFrame {
     }
 
 
-    private JPanel createReminderPanel() {
-        JPanel panel = new JPanel();
-        JLabel reminderLabel = new JLabel("Reminders will pop up when a task's reminder time arrives!");
-        panel.add(reminderLabel);
-        return panel;
-    }
+    
 
+        // Initially update the list of upcoming reminders
+
+
+  
+        
+
+    
+    
     private  JPanel createStatisticsPanel(){
 
 
@@ -617,11 +670,12 @@ public void updateTaskStatistics(String taskListModel) {
     private JPanel createDashboardPanel() {
     JTabbedPane tabbedPane = new JTabbedPane();
     
-    JPanel taskPanel = createTaskPanel(); // Create the Task panel
-    JPanel reminderPanel = createReminderPanel(); // Create the Reminder panel
+    JPanel taskPanel = createTaskPanel();
+    JPanel statisticspanel = createTaskPanel(); // Create the Task panel
     
     tabbedPane.addTab("Tasks", taskPanel);
-    tabbedPane.addTab("Reminders", reminderPanel);
+    tabbedPane.addTab("Statistics",statisticspanel);
+
     
     JPanel dashboardPanel = new JPanel(new BorderLayout());
     dashboardPanel.add(tabbedPane, BorderLayout.CENTER);
@@ -638,7 +692,7 @@ public void updateTaskStatistics(String taskListModel) {
     }
 
    private JPanel createRecommendationPanel(){
-    ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
+    ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/create.png"));
     Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
 
     // Create the background panel with the image
@@ -658,9 +712,11 @@ public void updateTaskStatistics(String taskListModel) {
         };
 
         JLabel rJLabel = new JLabel(getRandomQuote(recommendation));
+        rJLabel.setForeground(Color.BLACK);
         rJLabel.setFont(new Font("Arial", Font.BOLD, 24));
         rJLabel.setHorizontalAlignment(SwingConstants.CENTER);
         rJLabel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
+        
 
         JButton newTaskButton = new JButton("Get New Task");
         newTaskButton.setFont(new Font("Arial", Font.BOLD, 16));
@@ -700,7 +756,7 @@ private void showRecommendationPanel() {
 
     private JPanel createMotivationPanel() {
 
-        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
+        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/trending.jpg"));
         Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
 
     // Create the background panel with the image
@@ -720,10 +776,12 @@ private void showRecommendationPanel() {
             "What lies behind us and what lies before us are tiny matters compared to what lies within us.",
             "The future belongs to those who believe in the beauty of their dreams."
         };
+
     
         // Create a JLabel to display quotes
         JLabel quoteLabel = new JLabel(getRandomQuote(quotes));
         quoteLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        quoteLabel.setForeground(Color.BLACK);
         quoteLabel.setHorizontalAlignment(SwingConstants.CENTER);
         quoteLabel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
     
@@ -764,131 +822,72 @@ private void showRecommendationPanel() {
     }
 
     private JPanel createTrendingtaskJPanel(){
-        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
+        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/simple.png"));
         Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
 
+    // Create the background panel with the image
         JPanel TrendingPanel = new BackgroundPanel(i2);
         TrendingPanel.setLayout(new BorderLayout());
-
+    
+        // Set a background color or image
         TrendingPanel.setBackground(new Color(255, 255, 255)); // White background
         TrendingPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+    
+        // Create a list of motivational quotes
+        String[] quotes = {
+            "Playing Games with freinds",
+            "The only way to do great work is to love what you do.",
+            "Success is not the key to happiness. Happiness is the key to success.",
+            "Dream big and dare to fail.",
+            "What lies behind us and what lies before us are tiny matters compared to what lies within us.",
+            "The future belongs to those who believe in the beauty of their dreams."
+        };
 
-        
-            TrendingPanel.setLayout(new BoxLayout(TrendingPanel, BoxLayout.Y_AXIS));
-            TrendingPanel.setBorder(BorderFactory.createTitledBorder("Trending Tasks"));
-         TrendingPanel.setBackground(Color.LIGHT_GRAY);
     
-            // Sample list of trending tasks (you can populate this dynamically from your database)
-            String[] trendingTasks = {
-                "Complete the project report",
-                "Plan the upcoming team meeting",
-                "Update the website design",
-                "Organize the office files",
-                "Prepare presentation slides"
-            };
+        // Create a JLabel to display quotes
+        JLabel quoteLabel = new JLabel(getRandomQuote(quotes));
+        quoteLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        quoteLabel.setForeground(Color.BLACK);
+        quoteLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        quoteLabel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
     
-            // Create UI components for each task
-            for (String task : trendingTasks) {
-                JPanel taskPanel = new JPanel(new BorderLayout());
-                taskPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-                taskPanel.setBackground(Color.WHITE);
+        // Add a button to get a new random quote
+        JButton newQuoteButton = new JButton("Get New Quote");
+        newQuoteButton.setFont(new Font("Arial", Font.BOLD, 16));
+        newQuoteButton.setBackground(new Color(255, 182, 193)); // Light pink color
+        newQuoteButton.setFocusPainted(false);
+        newQuoteButton.addActionListener(e -> quoteLabel.setText(getRandomQuote(quotes)));
+
+         // Create a button to navigate back to the dashboard
+        JButton backButton = new JButton("Back to Dashboard");
+        backButton.setFont(new Font("Arial", Font.BOLD, 16));
+        backButton.setSize(50, 50);
+        backButton.setFocusPainted(false);
+        backButton.addActionListener(e -> showHome()); // Navigate back to the dashboard
     
-                JLabel taskLabel = new JLabel(task);
-                taskLabel.setFont(new Font("Arial", Font.BOLD, 14));
-    
-                JButton detailsButton = new JButton("Details");
-                detailsButton.setBackground(Color.PINK);
-                detailsButton.setForeground(Color.WHITE);
-                detailsButton.setFocusable(false);
-    
-                // Add task label and button to each task panel
-                taskPanel.add(taskLabel, BorderLayout.CENTER);
-                taskPanel.add(detailsButton, BorderLayout.EAST);
-    
-                // Add a hover effect to the task panel
-                taskPanel.addMouseListener(new java.awt.event.MouseAdapter() {
-                    public void mouseEntered(java.awt.event.MouseEvent evt) {
-                        taskPanel.setBackground(Color.PINK);
-                    }
-    
-                    public void mouseExited(java.awt.event.MouseEvent evt) {
-                        taskPanel.setBackground(Color.WHITE);
-                    }
-                });
-    
-                // Add the individual task panel to the main trending task panel
-                TrendingPanel.add(taskPanel);
-            }
+        // Add the components to the panel
+        TrendingPanel.add(backButton,BorderLayout.WEST);
+        TrendingPanel.add(quoteLabel, BorderLayout.CENTER);
+        TrendingPanel.add(newQuoteButton, BorderLayout.SOUTH);
     
         return TrendingPanel;
     }
 
     private void showTrendingTaskPanel() {
-        JPanel motivationPanel = createMotivationPanel();
-        setContentPane(motivationPanel);
+        JPanel TrendingJPanel = createTrendingtaskJPanel();
+        setContentPane(TrendingJPanel);
         revalidate(); // Refresh the frame to show the new content
         repaint();
         
-    }
-    public JPanel addAdditionalInfoBoxes() {
-
-        ImageIcon i1 = new ImageIcon(ClassLoader.getSystemResource("img/BgLogin.jpg"));
-        Image i2 = i1.getImage().getScaledInstance(1170, 650, Image.SCALE_DEFAULT);
-
-    // Create the background panel with the image
-        JPanel infoPanel = new BackgroundPanel(i2);
-        infoPanel.setLayout(new BorderLayout());
-    
-        // Set a background color or image
-        infoPanel.setBackground(new Color(255, 255, 255)); // White background
-        infoPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-    
-        // Create a main panel for the additional info boxes (Calendar, Important Links, Welcome)
-        infoPanel.setLayout(new GridLayout(1, 3, 10, 10)); // 1 row, 3 columns for the boxes
-    
-        // Create "Calendar" box
-        JPanel calendarPanel = new JPanel();
-        calendarPanel.setLayout(new BoxLayout(calendarPanel, BoxLayout.Y_AXIS));
-        calendarPanel.setBorder(BorderFactory.createTitledBorder("Calendar")); // Add title
-        calendarPanel.add(new JLabel("In a small town nestled between rolling hills and lush green forests, there lived a young girl named Clara. She was known for her curious spirit and adventurous heart. Every day after school, Clara would explore the woods, searching for hidden treasures and secret paths. One sunny afternoon, while wandering deeper than ever before, she stumbled upon a shimmering stream. The water sparkled like diamonds in the sunlight, and Clara was instantly captivated.\n" + //
-                        "\n" + //
-                        "As she followed the stream, she noticed colorful wildflowers blooming along the banks. They swayed gently in the breeze, and Clara couldn't resist picking a few to take home. Suddenly, she heard a soft rustling sound behind her. Turning around, she was surprised to see a small, fluffy rabbit peering out from behind a bush. The rabbit looked at her with big, curious eyes, and Clara smiled.\n" + //
-                        "\n" + //
-                        "\"Hello there!\" she said softly. The rabbit hopped closer, as if inviting her to play. Clara spent the rest of the afternoon frolicking with her new friend, discovering the beauty of nature and the joy of friendship. Little did she know that this magical day would be the start of many wonderful adventures to come.\n" + //
-                        "\n" + //
-                        "")); // Placeholder content
-    
-        // Create "Important Links" box
-        JPanel importantLinksPanel = new JPanel();
-        importantLinksPanel.setLayout(new BoxLayout(importantLinksPanel, BoxLayout.Y_AXIS));
-        importantLinksPanel.setBorder(BorderFactory.createTitledBorder("Important Links")); // Add title
-        importantLinksPanel.add(new JLabel("Link 1: ..."));
-        importantLinksPanel.add(new JLabel("Link 2: ..."));
-    
-        // Create "Welcome" box
-        JPanel welcomePanel = new JPanel();
-        welcomePanel.setLayout(new BoxLayout(welcomePanel, BoxLayout.Y_AXIS));
-        welcomePanel.setBorder(BorderFactory.createTitledBorder("Welcome")); // Add title
-        welcomePanel.add(new JLabel("Welcome message goes here..."));
-    
-        // Add all the panels to the infoPanel (which acts as the container for the three boxes)
-        infoPanel.add(calendarPanel);
-        infoPanel.add(importantLinksPanel);
-        infoPanel.add(welcomePanel);
-    
-        // Add the infoPanel to the JFrame or main container, below the task sections
-        getContentPane().add(infoPanel, BorderLayout.SOUTH); // Assuming you're adding this to the bottom
-        validate(); // Refresh the layout after adding components
-        repaint();
-
-      
-      return  infoPanel;
     }
 
     
     
 
     public static void main(String[] args) {
+        Task task = new Task("Finish report", "2024-10-23", "Work", "Incomplete", new Date(System.currentTimeMillis() + 60000)); // 1 minute from now
+        task.startReminder();
+
         new Dashboard();
     }
 }
